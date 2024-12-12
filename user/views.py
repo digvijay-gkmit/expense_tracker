@@ -79,59 +79,19 @@ class UserLoginView(APIView):
             )
 
 
-# class UserLogoutView(APIView):
+# class UserTestView(APIView):
 #     """
-#     User Logout View to revoke the refresh token and log the user out.
+#     Test view to check if the user is authenticated.
 #     """
 
-#     permission_classes = [
-#         permissions.IsAuthenticated
-#     ]  # Only authenticated users can log out
+#     permission_classes = [permissions.IsAuthenticated]
 
-#     def post(self, request):
-#         """
-#         Handle POST request to logout a user by blacklisting the refresh token.
-#         """
-#         try:
-#             # Get the refresh token from the request
-#             refresh_token = request.data.get("refresh_token")
-#             print(refresh_token)
-#             # print(refresh_token)
-#             if refresh_token:
-#                 # Try to decode the token and blacklist it
-#                 refresh = RefreshToken(refresh_token)
-#                 # Blacklist the refresh token
-#                 refresh.blacklist()
-
-#                 return Response(
-#                     {"message": "Logout successful."},
-#                     status=status.HTTP_200_OK,
-#                 )
-#             else:
-#                 return Response(
-#                     {"message": "Refresh token is required."},
-#                     status=status.HTTP_400_BAD_REQUEST,
-#                 )
-#         except TokenError:
-#             return Response(
-#                 {"message": "Invalid refresh token."},
-#                 status=status.HTTP_400_BAD_REQUEST,
-#             )
-
-
-class UserTestView(APIView):
-    """
-    Test view to check if the user is authenticated.
-    """
-
-    permission_classes = [permissions.IsAuthenticated]
-
-    def get(self, request):
-        # Accessing the authenticated user
-        user = request.user
-        print(user) 
-        # Returning a personalized message
-        return Response({"message": f"You are an authenticated user, {user.username}."})
+#     def get(self, request):
+#         # Accessing the authenticated user
+#         user = request.user
+#         print(user) 
+#         # Returning a personalized message
+#         return Response({"message": f"You are an authenticated user, {user.username}."})
     
 
 
