@@ -26,13 +26,14 @@ class UserSignupView(APIView):
             user = serializer.save()
             # Issue JWT Token for the new user
             refresh = RefreshToken.for_user(user)
-            print(refresh)
-            return Response(
-                {
+            data={
                     "message": "User created successfully.",
                     "access_token": str(refresh.access_token),  # JWT access token
                     "refresh_token": str(refresh),  # JWT refresh token
-                },
+                }
+            return Response(
+                data,
+                content_type="application/json",
                 status=status.HTTP_201_CREATED,
             )
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -53,7 +54,7 @@ class UserLoginView(APIView):
         password = request.data.get("password")
         # Authenticate the user
         user = authenticate(request, username=email, password=password)
-        # print(user)
+        
         if user is not None:
             # Issue JWT Token for the authenticated user
             refresh = RefreshToken.for_user(user)
@@ -64,11 +65,6 @@ class UserLoginView(APIView):
                 "refresh_token": str(refresh),
             }
             return Response(
-                # {
-                #     "message": "Login successful.",
-                #     "access_token": str(refresh.access_token),
-                #     "refresh_token": str(refresh),
-                # },
                 data,
                 content_type="application/json",
                 status=status.HTTP_200_OK,
@@ -103,16 +99,15 @@ class UserLogoutView(APIView):
 
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request):
-        print("im inside logout view")
+        
         try:
             refresh_token = request.data.get("refresh_token")
             access_token= request.data.get("access_token")
-            print(refresh_token)
+            # print(refresh_token)
             if refresh_token:
                 refresh = RefreshToken(refresh_token)
                 accesss= AccessToken(access_token)
                 refresh.blacklist()  # Blacklist the token
-                accesss.blacklist()
                 return Response({
                     "message": "Logout successful."
                 }, status=status.HTTP_200_OK)
@@ -126,3 +121,87 @@ class UserLogoutView(APIView):
                 "message": "Invalid refresh token."
             }, status=status.HTTP_400_BAD_REQUEST)
 
+
+
+class UserUpdateView(APIView):
+    """
+    User Update View to allow authenticated users to update their profile information.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def put(self, request):
+        """
+        Handle PUT request to update user information.
+        Allows updating name, mobile number, and password.
+        """
+        user = request.user
+        
+        # Extract update data
+        name = request.data.get('name')
+        mobile_number = request.data.get('mobile_number')
+        password = request.data.get('password')
+        
+        # Prepare update data
+        update_data = {}
+        
+        # Add name if provided
+        if name:
+            update_data['name'] = name
+        
+        # Add mobile number if provided
+        if mobile_number:
+            update_data['mobile_number'] = mobile_number
+        
+        # Handle password update with additional security
+        if password:
+            # You might want to add additional password validation here
+            update_data['password'] = make_password(password)
+        
+        # If no update data is provided
+        if not update_data:
+            return Response(
+                {"message": "No update information provided."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        
+        # Create serializer with partial update
+        serializer = UserSerializer(user, data=update_data, partial=True)
+        
+        if serializer.is_valid():
+            serializer.save()
+            return Response(
+                {"message": "User profile updated successfully."},
+                status=status.HTTP_200_OK
+            )
+        
+        return Response(
+            serializer.errors, 
+            status=status.HTTP_400_BAD_REQUEST
+        )
+
+
+class UserDeleteView(APIView):
+    """
+    User Delete View to allow authenticated users to delete their account.
+    """
+    permission_classes = [permissions.IsAuthenticated]
+
+    def delete(self, request):
+        """
+        Handle DELETE request to remove the user's account.
+        Requires the user to be authenticated.
+        """
+        user = request.user
+        
+        try:
+            # Delete the user
+            user.delete()
+            return Response(
+                {"message": "User account deleted successfully."},
+                status=status.HTTP_200_OK
+            )
+        except Exception as e:
+            return Response(
+                {"message": "Error deleting user account.", "error": str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
