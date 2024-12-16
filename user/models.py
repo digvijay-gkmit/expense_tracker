@@ -28,7 +28,6 @@ class CustomUser(AbstractBaseUser):
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=60)
     mobile_no = models.CharField(max_length=12)
-    location = models.CharField(max_length=255, null=True)
     is_admin = models.BooleanField(default=False)
     is_active = models.BooleanField(default=True)
     date_joined = models.DateTimeField(auto_now_add=True)
