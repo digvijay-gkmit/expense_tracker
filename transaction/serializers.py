@@ -6,10 +6,13 @@ class TransactionSerializer(serializers.ModelSerializer):
     class Meta:
         model = Transaction
         fields = '__all__'
-    def create(self, validated_data):
-        # Get the user from the request context
-        request = self.context.get('request')
-        if request:
-            user = request.user  # Get the logged-in user
-            validated_data['user'] = user
-        return super().create(validated_data)
+        read_only_fields = ['id','created_at', 'updated_at']
+
+    
+    def validate_amount(self, amount):
+        if amount <= 0:
+            raise serializers.ValidationError("Amount must be greater than zero")
+        max_amount = 9999999.99
+        if amount >= max_amount:
+            raise serializers.ValidationError("Amount must be greater than zero")
+        return amount
