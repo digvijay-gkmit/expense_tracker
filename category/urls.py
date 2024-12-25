@@ -1,7 +1,8 @@
 from django.urls import path
-from .views import CategoryListCreateAPIView, CategoryRetrieveUpdateDestroyAPIView
+from .views import CategoryView
 
+# URL patterns for CategoryViewSet actions
 urlpatterns = [
-    path('categories/', CategoryListCreateAPIView.as_view(), name='category-list-create'),
-    path('categories/<int:pk>/', CategoryRetrieveUpdateDestroyAPIView.as_view(), name='category-retrieve-update-destroy'),
+    path('', CategoryView.as_view(), name='category-list-create'),
+    path('<uuid:pk>/', CategoryView.as_view(), name='category-list-create'),
 ]

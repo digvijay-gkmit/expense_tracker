@@ -1,15 +1,14 @@
 # transactions/urls.py
 from django.urls import path
 from .views import (
-    TransactionListCreateView,
-    TransactionDetailView,
+    TransactionView,
     TransactionSummaryView,
-    CategoryTransactionSummaryView
+    # CategoryTransactionSummaryView
 )
 
 urlpatterns = [
-    path('transactions/', TransactionListCreateView.as_view(), name='transaction-list-create'),
-    path('transactions/<uuid:pk>/', TransactionDetailView.as_view(), name='transaction-detail'),
-    path('transactions/summary/', TransactionSummaryView.as_view(), name='transaction-summary'),
-    path('transactions/category/<uuid:category_uuid>/', CategoryTransactionSummaryView.as_view(), name='category-transaction-summary')
+    path("", TransactionView.as_view(), name="transaction-list-create"),
+    path("<uuid:pk>/", TransactionView.as_view(), name="transaction-detail"),
+    path("summary/", TransactionSummaryView.as_view(), name="transaction-summary"),
+    #    path('transactions/category/<uuid:category_uuid>/', CategoryTransactionSummaryView.as_view(), name='category-transaction-summary')
 ]
