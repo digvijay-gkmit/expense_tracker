@@ -2,12 +2,20 @@ from rest_framework import status, permissions
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework_simplejwt.tokens import RefreshToken, AccessToken
-from .serializers import UserSerializer 
+from .serializers import UserSerializer, ChangePasswordSerializer
 from .models import CustomUser
 from django.contrib.auth import authenticate
+from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework_simplejwt.exceptions import TokenError
-
+from django.contrib.auth.hashers import make_password
+from django.db import transaction
+from base.permissions import IsAdminOrUserOwner
+from django.shortcuts import get_object_or_404
+from django.core.mail import EmailMessage
+from django.template.loader import render_to_string
+from django.conf import settings
+from django.utils.crypto import get_random_string
 
 
 class UserSignupView(APIView):
@@ -18,25 +26,88 @@ class UserSignupView(APIView):
     permission_classes = [permissions.AllowAny]  # Anyone can access the signup view
 
     def post(self, request):
-        """
-        Handle POST request to sign up a new user.
-        """
         serializer = UserSerializer(data=request.data)
+
         if serializer.is_valid():
-            user = serializer.save()
-            # Issue JWT Token for the new user
-            refresh = RefreshToken.for_user(user)
-            data={
-                    "message": "User created successfully.",
-                    "access_token": str(refresh.access_token),  # JWT access token
-                    "refresh_token": str(refresh),  # JWT refresh token
-                }
+
+            try:
+                # serializer.validated_data["verification_token"] = get_random_string(64)
+                user = serializer.save()
+                # Get your domain from settings or use request
+                domain = request.get_host()
+
+                # Generate verification URL with actual domain
+                verification_url = (
+                    f"http://{domain}/user/verify-email/{user.generate_new_verification_token()}/"
+                )
+
+                # Prepare email content
+                email_subject = "Verify your email address"
+                email_body = render_to_string(
+                    "email/verify_email.html",
+                    {
+                        "user": user,
+                        "verification_url": verification_url,
+                        "domain": domain,
+                    },
+                )
+
+                # Create and send email
+                email = EmailMessage(
+                    subject=email_subject,
+                    body=email_body,
+                    from_email=settings.DEFAULT_FROM_EMAIL,
+                    to=[user.email],
+                )
+                email.content_subtype = "html"
+                email.send(fail_silently=False)
+
+                return Response(
+                    {
+                        "message": "User created successfully. Please check your email for verification.",
+                        "email": user.email,
+                    },
+                    status=status.HTTP_201_CREATED,
+                )
+
+            except Exception as e:
+                print(f"Email sending failed: {str(e)}")
+                # You might want to delete the user if email sending fails
+                return Response(
+                    {
+                        "message": "User created but email sending failed. Please try again.",
+                        "error": str(e),
+                    },
+                    status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                )
+        else:
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+
+class VerifyEmailView(APIView):
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request, token):
+        try:
+            user = CustomUser.objects.get(verification_token=token)
+            if not user.is_verified:
+                user.is_verified = True
+                user.verification_token = None  # Clear token after use
+                user.save()
+                return Response(
+                    {"message": "Email verified successfully. You can now login."},
+                    status=status.HTTP_200_OK,
+                )
             return Response(
-                data,
-                content_type="application/json",
-                status=status.HTTP_201_CREATED,
+                {"message": "Email already verified."}, status=status.HTTP_200_OK
             )
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except CustomUser.DoesNotExist:
+            return Response(
+                {"message": "Invalid verification token."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
 
 class UserLoginView(APIView):
@@ -54,11 +125,16 @@ class UserLoginView(APIView):
         password = request.data.get("password")
         # Authenticate the user
         user = authenticate(request, username=email, password=password)
-        
+
         if user is not None:
             # Issue JWT Token for the authenticated user
+            if not user.is_active:
+                return Response(
+                    {"message": "User account is disabled."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
             refresh = RefreshToken.for_user(user)
-            
+
             data = {
                 "message": "Login successful.",
                 "access_token": str(refresh.access_token),
@@ -75,133 +151,211 @@ class UserLoginView(APIView):
             )
 
 
-# class UserTestView(APIView):
-#     """
-#     Test view to check if the user is authenticated.
-#     """
-
-#     permission_classes = [permissions.IsAuthenticated]
-
-#     def get(self, request):
-#         # Accessing the authenticated user
-#         user = request.user
-#         print(user) 
-#         # Returning a personalized message
-#         return Response({"message": f"You are an authenticated user, {user.username}."})
-    
-
-
-
 class UserLogoutView(APIView):
     """
     User Logout View to revoke the refresh token and log the user out.
     """
 
     permission_classes = [permissions.IsAuthenticated]
+
     def post(self, request):
-        
+
         try:
             refresh_token = request.data.get("refresh_token")
-            access_token= request.data.get("access_token")
+            
             # print(refresh_token)
             if refresh_token:
                 refresh = RefreshToken(refresh_token)
-                accesss= AccessToken(access_token)
-                refresh.blacklist()  # Blacklist the token
-                return Response({
-                    "message": "Logout successful."
-                }, status=status.HTTP_200_OK)
 
-            return Response({
-                "message": "Refresh token is required."
-            }, status=status.HTTP_400_BAD_REQUEST)
+                refresh.blacklist()  # Blacklist the token
+                return Response(
+                    {"message": "Logout successful."}, status=status.HTTP_200_OK
+                )
+
+            return Response(
+                {"message": "Refresh token is required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         except TokenError:
-            return Response({
-                "message": "Invalid refresh token."
-            }, status=status.HTTP_400_BAD_REQUEST)
-
-
-
-class UserUpdateView(APIView):
-    """
-    User Update View to allow authenticated users to update their profile information.
-    """
-    permission_classes = [permissions.IsAuthenticated]
-
-    def put(self, request):
-        """
-        Handle PUT request to update user information.
-        Allows updating name, mobile number, and password.
-        """
-        user = request.user
-        
-        # Extract update data
-        name = request.data.get('name')
-        mobile_number = request.data.get('mobile_number')
-        password = request.data.get('password')
-        
-        # Prepare update data
-        update_data = {}
-        
-        # Add name if provided
-        if name:
-            update_data['name'] = name
-        
-        # Add mobile number if provided
-        if mobile_number:
-            update_data['mobile_number'] = mobile_number
-        
-        # Handle password update with additional security
-        if password:
-            # You might want to add additional password validation here
-            update_data['password'] = make_password(password)
-        
-        # If no update data is provided
-        if not update_data:
             return Response(
-                {"message": "No update information provided."},
-                status=status.HTTP_400_BAD_REQUEST
+                {"message": "Invalid refresh token."},
+                status=status.HTTP_400_BAD_REQUEST,
             )
-        
-        # Create serializer with partial update
-        serializer = UserSerializer(user, data=update_data, partial=True)
-        
+
+
+class UserDetailView(APIView):
+    """
+    API endpoint for retrieving, updating, and deleting user details.
+    """
+
+    permission_classes = [IsAdminOrUserOwner]
+
+    def get(self, request, pk=None):
+        """
+        Retrieve user details.
+        """
+        if pk:
+            user = get_object_or_404(CustomUser, pk=pk)
+        else:
+            user = request.user
+
+        self.check_object_permissions(request, user)
+        serializer = UserSerializer(user)
+        return Response(serializer.data)
+
+    def put(self, request, pk=None):
+        """
+        Update user details.
+        """
+
+        if pk:
+            user = get_object_or_404(CustomUser, pk=pk)
+        else:
+            user = request.user
+
+        self.check_object_permissions(request, user)
+        if request.data.get("password"):
+            return Response(
+                {"message": "Password cannot be updated using this endpoint"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if request.data.get("email"):
+            return Response(
+                {"message": "Email cannot be updated using this endpoint"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        serializer = UserSerializer(request.user, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def patch(self, request, pk=None):
+        """
+        Partially update user details.
+        """
+        if request.data.get("password"):
+            return Response(
+                {"message": "Password cannot be updated using this endpoint"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if request.data.get("email"):
+            return Response(
+                {"message": "Email cannot be updated using this endpoint"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        if pk:
+            user = get_object_or_404(CustomUser, pk=pk)
+        else:
+            user = request.user
+
+        self.check_object_permissions(request, user)
+
+        serializer = UserSerializer(request.user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    def delete(self, request, pk=None):
+        """
+        Delete user account. #soft delete
+        """
+
+        if pk:
+            user = get_object_or_404(CustomUser, pk=pk)
+        else:
+            user = request.user
+
+        self.check_object_permissions(request, user)
+
+        serializer = UserSerializer(user, data={"is_active": "False"}, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(
-                {"message": "User profile updated successfully."},
-                status=status.HTTP_200_OK
+                {"message": "user deleted successfully"},
+                status=status.HTTP_204_NO_CONTENT,
             )
-        
-        return Response(
-            serializer.errors, 
-            status=status.HTTP_400_BAD_REQUEST
-        )
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-class UserDeleteView(APIView):
+class ChangePasswordView(APIView):
     """
-    User Delete View to allow authenticated users to delete their account.
+    API endpoint for changing user password with JWT authentication.
     """
-    permission_classes = [permissions.IsAuthenticated]
 
-    def delete(self, request):
-        """
-        Handle DELETE request to remove the user's account.
-        Requires the user to be authenticated.
-        """
-        user = request.user
-        
+    permission_classes = [IsAuthenticated]
+    serializer_class = ChangePasswordSerializer
+
+    def post(self, request):
         try:
-            # Delete the user
-            user.delete()
+            with transaction.atomic():
+                user = CustomUser.objects.select_for_update().get(id=request.user.id)
+
+                serializer = self.serializer_class(
+                    data=request.data, context={"request": request}
+                )
+
+                if serializer.is_valid():
+                    # Verify old password
+                    if not user.check_password(
+                        serializer.validated_data["old_password"]
+                    ):
+                        return Response(
+                            {"old_password": "Current password is incorrect."},
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # Verify new password is different from old password
+                    if (
+                        serializer.validated_data["old_password"]
+                        == serializer.validated_data["new_password"]
+                    ):
+                        return Response(
+                            {
+                                "new_password": "New password must be different from current password."
+                            },
+                            status=status.HTTP_400_BAD_REQUEST,
+                        )
+
+                    # Set new password
+                    user.set_password(serializer.validated_data["new_password"])
+                    user.save(update_fields=["password"])
+
+                    # Generate new tokens
+                    refresh = RefreshToken.for_user(user)
+
+                    return Response(
+                        {
+                            "status": "success",
+                            "message": "Password successfully changed.",
+                            "access_token": str(refresh.access_token),
+                            "refresh_token": str(refresh),
+                        },
+                        content_type="application/json",
+                        status=status.HTTP_200_OK,
+                    )
+
+                return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        except CustomUser.DoesNotExist:
             return Response(
-                {"message": "User account deleted successfully."},
-                status=status.HTTP_200_OK
+                {"error": "User not found."}, status=status.HTTP_404_NOT_FOUND
             )
         except Exception as e:
             return Response(
-                {"message": "Error deleting user account.", "error": str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+                {
+                    "error": "An error occurred while changing password.",
+                    "details": str(e),
+                },
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
+
+        return Response(
+            {"message": "Password successfully changed."}, status=status.HTTP_200_OK
+        )
+
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
