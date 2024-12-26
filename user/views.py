@@ -195,6 +195,7 @@ class UserDetailView(APIView):
         """
         Retrieve user details.
         """
+        
         if pk:
             user = get_object_or_404(CustomUser, pk=pk)
         else:
@@ -202,7 +203,18 @@ class UserDetailView(APIView):
 
         self.check_object_permissions(request, user)
         serializer = UserSerializer(user)
-        return Response(serializer.data)
+        if request.user.is_admin:
+            return Response(serializer.data)
+        
+        data={
+            "id": user.id,
+            "username": user.username,
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name,
+            "is_active": user.is_active,
+        }    
+        return Response(data)
 
     def put(self, request, pk=None):
         """
@@ -270,7 +282,7 @@ class UserDetailView(APIView):
 
         self.check_object_permissions(request, user)
 
-        serializer = UserSerializer(user, data={"is_active": "False"}, partial=True)
+        serializer = UserSerializer(user, data={"is_active":False}, partial=True)
         if serializer.is_valid():
             serializer.save()
             return Response(

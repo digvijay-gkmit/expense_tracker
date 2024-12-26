@@ -6,6 +6,7 @@ from django.utils.crypto import get_random_string
 from rest_framework.permissions import BasePermission
 from django.utils import timezone
 
+
 class CustomUserManager(BaseUserManager):
     def create_user(self, email, username, password=None, **extra_fields):
         """Create and return a regular user with an email and password."""
@@ -35,11 +36,15 @@ class CustomUser(AbstractBaseUser, BaseModel):
     password = models.CharField(max_length=128)
     first_name = models.CharField(max_length=30)
     last_name = models.CharField(max_length=60)
-    mobile_no = models.CharField(max_length=12)
+    mobile_no = models.CharField(max_length=13,null=True,blank=True)
     is_admin = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)  # added for email verification and permissions
+    is_verified = models.BooleanField(
+        default=False
+    )  # added for email verification and permissions
     is_active = models.BooleanField(default=True)
-    verification_token = models.CharField(max_length=64, unique=True, null=True, blank=True)
+    verification_token = models.CharField(
+        max_length=64, unique=True, null=True, blank=True
+    )
     token_created_at = models.DateTimeField(null=True, blank=True)  # Add this field
 
     objects = CustomUserManager()
@@ -56,23 +61,22 @@ class CustomUser(AbstractBaseUser, BaseModel):
 
     def generate_new_verification_token(self):
         """Generate a new verification token for the user."""
-        
+
         self.verification_token = get_random_string(64)
         self.token_created_at = timezone.now()  # Set token creation time
         self.save()
         return self.verification_token
-    
+
     def is_verification_token_valid(self):
         """Check if the verification token is still valid (not expired)."""
-        
-        
+
         if not self.token_created_at:
             return False
-            
+
         # Token expires after 24 hours
         expiry_time = self.token_created_at + timedelta(hours=24)
         return timezone.now() <= expiry_time
-    
+
     def verify_email(self):
         """Mark the user's email as verified and clear the verification token."""
         if self.is_verification_token_valid():
@@ -82,6 +86,7 @@ class CustomUser(AbstractBaseUser, BaseModel):
             self.save()
             return True
         return False
+
 
 class IsEmailVerifiedPermission(BasePermission):
     """

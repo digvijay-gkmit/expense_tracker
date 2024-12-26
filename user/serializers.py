@@ -56,7 +56,14 @@ class UserSerializer(serializers.ModelSerializer):
         model = CustomUser
         fields = "__all__"
         extra_kwargs = {"password": {"write_only": True}}
-        read_only_fields = ['id','created_at', 'updated_at','is_verified','is_active','is_admin']
+        read_only_fields = [
+            "id",
+            "created_at",
+            "updated_at",
+            "is_verified",
+            "is_active",
+            "is_admin",
+        ]
 
     def validate_username(self, value):
         """
@@ -84,9 +91,11 @@ class UserSerializer(serializers.ModelSerializer):
         """password validation"""
 
         return validate_password_base(value)
+
     def create(self, validated_data):
         user = CustomUser.objects.create_user(**validated_data)
         return user
+
     def update(self, instance, validated_data):
         if "password" in validated_data:
             validated_data.pop("password")
