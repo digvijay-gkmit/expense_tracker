@@ -1,35 +1,60 @@
-# your_project/utils/pagination.py
+from rest_framework.response import Response
+from urllib.parse import urlencode
+
 
 class CustomPagination:
-    def __init__(self, page_size=10):
+    def __init__(self, page_size=2):
         self.page_size = page_size
 
-    def paginate_queryset(self, queryset, page):
+    def paginate_queryset(self, queryset, request):
         """
-        Paginate a queryset or list based on the current page and page size.
+        Paginates the queryset manually based on page size and page number.
+
+        queryset: The queryset to paginate
+        request: The request object that contains pagination params
         """
-        total_count = len(queryset)
-        start = (page - 1) * self.page_size
-        end = start + self.page_size
 
-        # Handle invalid page numbers
-        if start >= total_count or page < 1:
-            return [], total_count
+        page_size = int(request.query_params.get("page_size", self.page_size))
 
-        return queryset[start:end], total_count
+        page_number = int(request.query_params.get("page", 1))
 
-    def get_paginated_response(self, data, total_count, page):
+        offset = (page_number - 1) * page_size
+        limit = page_size
+
+        paginated_queryset = queryset[offset : offset + limit]
+
+        return paginated_queryset, queryset.count()
+
+    def get_paginated_response(self, data, request, total_count):
         """
-        Return a structured response with pagination metadata.
+        Builds the paginated response.
         """
-        total_pages = (total_count + self.page_size - 1) // self.page_size
+        page_size = int(request.query_params.get("page_size", self.page_size))
+        total_pages = (total_count + page_size - 1) // page_size
+        page_number = int(request.query_params.get("page", 1))
 
-        return {
-            "page": page,
-            "page_size": self.page_size,
-            "total_items": total_count,
-            "total_pages": total_pages,
-            "next": page + 1 if page < total_pages else None,
-            "previous": page - 1 if page > 1 else None,
+        if page_number < total_pages:
+            next = self.get_url(page_number + 1, request)
+        else:
+            next = None
+
+        if page_number > 1:
+            previous = self.get_url(page_number - 1, request)
+        else:
+            previous = None
+
+        pagination_metadata = {
+            "count": total_count,
+            "next": next,
+            "previous": previous,
             "results": data,
         }
+        return Response(pagination_metadata)
+
+    def get_url(self, page_number, request):
+        """
+        Generates the URL for the next page.
+        """
+        query_params = request.query_params.copy()
+        query_params["page"] = page_number
+        return f"{request.build_absolute_uri(request.path)}?{urlencode(query_params)}"
