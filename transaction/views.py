@@ -7,28 +7,23 @@ from rest_framework.pagination import PageNumberPagination
 from django.db.models import Sum, Count
 from django.utils import timezone
 from datetime import datetime
-from django.db.models.functions import TruncMonth, TruncYear
-import uuid
+# from django.db.models.functions import TruncMonth, TruncYear
 import calendar
-from .models import Transaction
+from models import Transaction
+
 from .serializers import TransactionSerializer
 from category.models import Category
-
-
-class StandardResultsSetPagination(PageNumberPagination):
-    page_size = 2
-    page_size_query_param = "page_size"
-   # max_page_size = 100
-
+from base.pagination import CustomPagination
+from django.core.mail import send_mail
 
 
 class TransactionView(APIView):
+
     """
     API endpoint for listing, creating, retrieving, updating, and deleting transactions.
     """
-
     permission_classes = [IsAuthenticated]
-    pagination_class = StandardResultsSetPagination
+    pagination_class = CustomPagination
 
     def get_object(self, pk, user):
         """
@@ -40,6 +35,8 @@ class TransactionView(APIView):
             return None
 
     def get(self, request, pk=None):
+        """List all user transactions with filtering and pagination, or retrieve a specific transaction."""
+
         if pk:
             # Retrieve a specific transaction
             transaction = self.get_object(pk, request.user)
@@ -56,26 +53,42 @@ class TransactionView(APIView):
             for param, value in request.query_params.items():
                 if param not in ["page", "page_size"]:
                     filters[param] = value
+            
             queryset = Transaction.objects.filter(user=request.user).order_by("-date")
             if filters:
                 queryset = queryset.filter(**filters)
 
-            # Pagination
-            paginator = self.pagination_class()
-            paginated_queryset = paginator.paginate_queryset(queryset, request)
+            # Initialize paginator
+            paginator = self.pagination_class(page_size=5)
+            
+            # Paginate the queryset
+            paginated_queryset, total_count = paginator.paginate_queryset(
+                queryset=queryset,
+                request=request
+            )
+            
+            # Serialize the paginated data
             serializer = TransactionSerializer(paginated_queryset, many=True)
-            return paginator.get_paginated_response(serializer.data)
+            
+            # Return paginated response
+            return paginator.get_paginated_response(
+                data=serializer.data,
+                request=request,
+                total_count=total_count
+            )
 
-    def post(self, request):
-        # Create a new transaction
+    def post(self, request,pk=None):
+    # Create a new transaction
         transaction_data = request.data.copy()
         transaction_data["user"] = request.user.id
         if "date" not in transaction_data:
             transaction_data["date"] = timezone.now().date()
+        
         serializer = TransactionSerializer(data=transaction_data)
         if serializer.is_valid():
-            serializer.save()
+            
             return Response(serializer.data, status=status.HTTP_201_CREATED)
+        
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
     def put(self, request, pk):
@@ -149,6 +162,9 @@ class TransactionSummaryView(APIView):
         }
 
         return Response(summary)
+
+
+
 
 
 # class CategoryTransactionSummaryView(APIView):
@@ -336,3 +352,110 @@ class TransactionSummaryView(APIView):
 #         return Response(status=status.HTTP_204_NO_CONTENT)
     
 
+# class StandardResultsSetPagination(PageNumberPagination):
+#     page_size = 2
+#     page_size_query_param = "page_size"
+#    # max_page_size = 100
+
+
+
+# class TransactionView(APIView):
+#     """
+#     API endpoint for listing, creating, retrieving, updating, and deleting transactions.
+#     """
+
+#     permission_classes = [IsAuthenticated]
+#     pagination_class = StandardResultsSetPagination
+
+#     def get_object(self, pk, user):
+#         """
+#         Helper method to retrieve a transaction, ensuring user ownership.
+#         """
+#         try:
+#             return Transaction.objects.get(id=pk, user=user)
+#         except Transaction.DoesNotExist:
+#             return None
+
+#     def get(self, request, pk=None):
+#         if pk:
+#             # Retrieve a specific transaction
+#             transaction = self.get_object(pk, request.user)
+#             if not transaction:
+#                 return Response(
+#                     {"error": "Transaction not found or you do not have permission"},
+#                     status=status.HTTP_404_NOT_FOUND,
+#                 )
+#             serializer = TransactionSerializer(transaction)
+#             return Response(serializer.data)
+#         else:
+#             # List all transactions for the authenticated user
+#             filters = {}
+#             for param, value in request.query_params.items():
+#                 if param not in ["page", "page_size"]:
+#                     filters[param] = value
+#             queryset = Transaction.objects.filter(user=request.user).order_by("-date")
+#             if filters:
+#                 queryset = queryset.filter(**filters)
+
+#             # Pagination
+#             paginator = self.pagination_class()
+#             paginated_queryset = paginator.paginate_queryset(queryset, request)
+#             serializer = TransactionSerializer(paginated_queryset, many=True)
+#             return paginator.get_paginated_response(serializer.data)
+
+
+    # def get(self, request, pk=None):
+    #     if pk:
+    #         # Retrieve a specific transaction
+    #         transaction = self.get_object(pk, request.user)
+    #         if not transaction:
+    #             return Response(
+    #                 {"error": "Transaction not found or you do not have permission"},
+    #                 status=status.HTTP_404_NOT_FOUND,
+    #             )
+    #         serializer = TransactionSerializer(transaction)
+    #         return Response(serializer.data)
+    #     else:
+    #         # List all transactions for the authenticated user
+    #         filters = {}
+    #         for param, value in request.query_params.items():
+    #             if param not in ["page", "page_size"]:
+    #                 filters[param] = value
+            
+    #         queryset = Transaction.objects.filter(user=request.user).order_by("-date")
+    #         if filters:
+    #             queryset = queryset.filter(**filters)
+
+    #         # Initialize paginator
+    #         paginator = self.pagination_class(page_size=5)  # Set default page size
+            
+    #         # Get pagination parameters
+    #         page_number = request.query_params.get('page', 1)
+    #         page_size = request.query_params.get('page_size', 5)
+            
+    #         # Paginate the queryset
+    #         paginated_queryset, total_count = paginator.paginate_queryset(
+    #             queryset=queryset,
+    #             request=request
+    #         )
+            
+    #         # Return paginated response
+    #         return paginator.get_paginated_response(
+    #             queryset=paginated_queryset,
+    #             page_number=page_number,
+    #             serializer_class=TransactionSerializer,
+    #             request=request,
+    #             total_count=total_count,
+    #             page_size=int(page_size)
+    #         )
+    # def post(self, request):
+    #     # Create a new transaction
+    #     transaction_data = request.data.copy()
+    #     transaction_data["user"] = request.user.id
+    #     if "date" not in transaction_data:
+    #         transaction_data["date"] = timezone.now().date()
+    #     serializer = TransactionSerializer(data=transaction_data)
+    #     if serializer.is_valid():
+    #         serializer.save()
+    #         return Response(serializer.data, status=status.HTTP_201_CREATED)
+    #     return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
