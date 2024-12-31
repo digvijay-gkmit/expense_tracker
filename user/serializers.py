@@ -1,6 +1,6 @@
 from rest_framework import serializers
 from .models import CustomUser
-from category.models import Category
+# from category.models import Category
 import re
 from django.utils.crypto import get_random_string
 
