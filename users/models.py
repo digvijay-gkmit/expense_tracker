@@ -31,8 +31,8 @@ class CustomUser(AbstractBaseUser, BaseModel):
     email = models.EmailField(unique=True)
     password = models.CharField(max_length=128)
     first_name = models.CharField(max_length=30)
-    last_name = models.CharField(max_length=60)
-    mobile_no = models.CharField(max_length=13,null=True,blank=True)
+    last_name = models.CharField(max_length=60, blank=True, null=True)
+    mobile_no = models.CharField(max_length=13, null=True, blank=True)
     is_admin = models.BooleanField(default=False)
     is_verified = models.BooleanField(
         default=False
