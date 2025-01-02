@@ -6,6 +6,7 @@ from .serializers import UserSerializer, ChangePasswordSerializer
 from .models import CustomUser
 from django.contrib.auth import authenticate
 from rest_framework.permissions import IsAuthenticated
+
 # from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.exceptions import ValidationError
 from rest_framework_simplejwt.exceptions import TokenError
@@ -16,9 +17,12 @@ from django.shortcuts import get_object_or_404
 from django.core.cache import caches
 
 from django.conf import settings
+
 # from django.utils.crypto import get_random_string
 from base.pagination import CustomPagination
 from .utils import *
+
+
 class UserSignupView(APIView):
     """
     User Signup View to create a new user and issue a JWT.
@@ -27,21 +31,17 @@ class UserSignupView(APIView):
     permission_classes = [permissions.AllowAny]  # Anyone can access the signup view
 
     def post(self, request, *args, **kwargs):
-            """
-            Handle POST requests to create a new user.
-            """
-            data = request.data
-            serializer = UserSerializer(data=data)
-            if serializer.is_valid():
-                user = serializer.save()
-                token = generate_token_for_user(user)
-                send_verification_email(user, token, request)
-                return Response(serializer.data, status=status.HTTP_201_CREATED)
-            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-                
-
-
-
+        """
+        Handle POST requests to create a new user.
+        """
+        data = request.data
+        serializer = UserSerializer(data=data)
+        if serializer.is_valid():
+            user = serializer.save()
+            token = generate_token_for_user(user)
+            send_verification_email(user, token, request)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 class UserLoginView(APIView):
@@ -124,6 +124,7 @@ class UserDetailView(APIView):
     """
 
     permission_classes = [IsAdminOrUserOwner]
+
     def get(self, request, pk=None):
         paginator = CustomPagination(page_size=5)
         """
@@ -328,4 +329,4 @@ class VerifyEmailView(APIView):
         token_cache = caches["token_cache"]
         token_cache.delete(token)
 
-        return Response("Email verified successfully", status=status.HTTP_200_O)
+        return Response("Email verified successfully", status=status.HTTP_200_OK)
