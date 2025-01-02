@@ -12,7 +12,7 @@ import calendar
 from .models import Transaction
 
 from .serializers import TransactionSerializer
-from category.models import Category
+from categories.models import Category
 from base.pagination import CustomPagination
 from django.core.mail import send_mail
 

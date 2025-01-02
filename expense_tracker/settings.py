@@ -44,9 +44,9 @@ INSTALLED_APPS = [
     "rest_framework",
     "rest_framework_simplejwt",
     'rest_framework_simplejwt.token_blacklist',
-    "user",
-    "transaction",
-    "category",
+    "users",
+    "transactions",
+    "categories",
 ]
 
 MIDDLEWARE = [
@@ -147,7 +147,7 @@ REST_FRAMEWORK = {
     ),
      'EXCEPTION_HANDLER': 'base.exceptions.global_exception_handler',
 }
-AUTH_USER_MODEL = "user.CustomUser"
+AUTH_USER_MODEL = "users.CustomUser"
 
 
 

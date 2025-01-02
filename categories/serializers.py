@@ -1,5 +1,5 @@
 from rest_framework import serializers
-from user.models import CustomUser
+from users.models import CustomUser
 from .models import Category
 from django.utils.text import slugify
 from django.core.exceptions import ValidationError

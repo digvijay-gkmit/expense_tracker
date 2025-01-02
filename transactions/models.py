@@ -1,6 +1,6 @@
 from django.db import models
-from user.models import CustomUser
-from category.models import Category
+from users.models import CustomUser
+from categories.models import Category
 import uuid
 from django.utils import timezone
 from base.models import BaseModel
