@@ -55,43 +55,4 @@ class CustomUser(AbstractBaseUser, BaseModel):
         """If the user is an admin, they are considered 'staff'."""
         return self.is_admin
 
-    # def generate_new_verification_token(self):
-    #     """Generate a new verification token for the user."""
-
-    #     self.verification_token = get_random_string(64)
-    #     self.token_created_at = timezone.now()  # Set token creation time
-    #     self.save()
-    #     return self.verification_token
-
-    # def is_verification_token_valid(self):
-    #     """Check if the verification token is still valid (not expired)."""
-
-    #     if not self.token_created_at:
-    #         return False
-
-    #     # Token expires after 24 hours
-    #     expiry_time = self.token_created_at + timedelta(hours=24)
-    #     return timezone.now() <= expiry_time
-
-    # def verify_email(self):
-    #     """Mark the user's email as verified and clear the verification token."""
-    #     if self.is_verification_token_valid():
-    #         self.is_verified = True
-    #         self.verification_token = None
-    #         self.token_created_at = None
-    #         self.save()
-    #         return True
-    #     return False
-
-
-# class IsEmailVerifiedPermission(BasePermission):
-#     """
-#     Permission check for email verification.
-#     """
-
-#     message = (
-#         "Email verification required. Please verify your email to access this resource."
-#     )
-
-#     def has_permission(self, request, view):
-#         return request.user.is_authenticated and request.user.email_verified()
+   
